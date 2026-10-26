@@ -2,9 +2,9 @@
     <info
         author="BlackWood"
         name="BlackWood Base System"
-        version="0.1.0"
+        version="0.2.0"
         type="script"
-        description="Base rental, access control and vehicle protection"
+        description="BlackWood base rental, token payments, vehicle entry and protection"
     />
 
     <script src="config.lua" type="shared" />
