@@ -522,7 +522,11 @@ addEventHandler("bwbase:exit", resourceRoot,
         baseId = tostring(baseId)
         local base = getBase(baseId)
         if not base or not validCoords(base.exit) then return end
-        if not nearPoint(player, base.exit, 5) then return end
+        -- Кнопка выхода доступна как у чекпоинта выхода, так и у управления базой.
+        local atExit = nearPoint(player, base.exit, 5)
+        local atManagement = validCoords(base.management)
+            and nearPoint(player, base.management, 5)
+        if not atExit and not atManagement then return end
 
         -- Возвращаем игрока к наружному входу.
         if not validCoords(base.entrance) then
