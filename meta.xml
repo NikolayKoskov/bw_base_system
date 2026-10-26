@@ -2,7 +2,7 @@
     <info
         author="BlackWood"
         name="BlackWood Base System"
-        version="0.2.0"
+        version="0.3.0"
         type="script"
         description="BlackWood base rental, token payments, vehicle entry and protection"
     />
