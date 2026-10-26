@@ -189,6 +189,7 @@ local function createConfiguredMarkers()
         ensureBase(baseId)
 
         createPoint(baseId, "entrance", base.entrance, "cylinder")
+        createPoint(baseId, "vehicleEntrance", base.vehicleEntrance or base.entrance, "cylinder")
         createPoint(baseId, "exit", base.exit, "cylinder")
         createPoint(baseId, "management", base.management, "cylinder")
     end
@@ -261,7 +262,20 @@ addEventHandler("bwbase:interact", resourceRoot,
         local base = getBase(baseId)
         if not base then return end
 
-        if pointName == "entrance" then
+        if pointName == "vehicleEntrance" then
+            local vehicle = getPedOccupiedVehicle(player)
+            local vehiclePoint = base.vehicleEntrance or base.entrance
+
+            if not vehicle or getVehicleOccupant(vehicle, 0) ~= player then
+                notify(player, "Чтобы открыть въезд, сядьте за руль автомобиля.", 220, 190, 80)
+                return
+            end
+
+            if not nearPoint(vehicle, vehiclePoint, 10) then return end
+            sendMenu(player, baseId, "vehicle")
+
+        elseif pointName == "entrance" then
+            if getPedOccupiedVehicle(player) then return end
             if not nearPoint(player, base.entrance, 4) then return end
             sendMenu(player, baseId, "outside")
 
@@ -293,8 +307,14 @@ addEventHandler("bwbase:rent", resourceRoot,
         local record = getBaseRecord(baseId)
 
         if not base or not record then return end
-        if not nearPoint(player, base.entrance, 5) then
-            notify(player, "Арендовать базу можно у входа.", 220, 70, 70)
+        local vehicle = getPedOccupiedVehicle(player)
+        local isDriver = vehicle and getVehicleOccupant(vehicle, 0) == player
+        local atEntrance = isDriver
+            and nearPoint(vehicle, base.vehicleEntrance or base.entrance, 10)
+            or (not vehicle and nearPoint(player, base.entrance, 5))
+
+        if not atEntrance then
+            notify(player, "Арендовать базу можно у входного чекпоинта.", 220, 70, 70)
             return
         end
 
@@ -324,7 +344,7 @@ addEventHandler("bwbase:rent", resourceRoot,
         query("DELETE FROM base_members WHERE base_id = ?", baseId)
 
         notify(player, "База арендована на " .. days .. " дн.", 100, 220, 120)
-        sendMenu(player, baseId, "outside")
+        sendMenu(player, baseId, isDriver and "vehicle" or "outside")
     end
 )
 
@@ -380,6 +400,7 @@ addEventHandler("bwbase:enter", resourceRoot,
             return
         end
 
+        if getPedOccupiedVehicle(player) then return end
         if not nearPoint(player, base.entrance, 5) then return end
 
         local record = getBaseRecord(baseId)
@@ -404,6 +425,74 @@ addEventHandler("bwbase:enter", resourceRoot,
             fadeCamera(p, true, 0.3)
             triggerClientEvent(p, "bwbase:closeMenu", resourceRoot)
         end, 350, 1, player, base, baseId)
+    end
+)
+
+
+addEvent("bwbase:enterVehicle", true)
+addEventHandler("bwbase:enterVehicle", resourceRoot,
+    function(baseId)
+        local player = client
+        if not isElement(player) then return end
+
+        baseId = tostring(baseId)
+        local base = getBase(baseId)
+        if not base then return end
+
+        local vehicle = getPedOccupiedVehicle(player)
+        if not vehicle or getVehicleOccupant(vehicle, 0) ~= player then
+            notify(player, "Для заезда нужно находиться за рулём.", 220, 70, 70)
+            return
+        end
+
+        if not nearPoint(vehicle, base.vehicleEntrance or base.entrance, 10) then
+            notify(player, "Подъедьте к въездному чекпоинту базы.", 220, 70, 70)
+            return
+        end
+
+        local record = getBaseRecord(baseId)
+        if not record or not isLeaseActive(record) then
+            notify(player, "Сначала необходимо арендовать базу.", 220, 70, 70)
+            return
+        end
+
+        if not hasAccess(player, baseId) and tonumber(record.is_open) ~= 1 then
+            notify(player, "База закрыта владельцем.", 220, 70, 70)
+            return
+        end
+
+        local destination = base.vehicleInside or base.inside
+        if not validCoords(destination) then
+            notify(player, "Не настроена точка парковки автомобиля внутри базы.", 220, 70, 70)
+            return
+        end
+
+        fadeCamera(player, false, 0.3)
+        setTimer(function(p, v, b, point)
+            if not isElement(p) or not isElement(v) then return end
+            if getPedOccupiedVehicle(p) ~= v or getVehicleOccupant(v, 0) ~= p then
+                fadeCamera(p, true, 0.3)
+                return
+            end
+
+            local interior = point.interior or b.inside.interior or 0
+            local dimension = point.dimension or b.inside.dimension or 0
+
+            setElementVelocity(v, 0, 0, 0)
+            setElementAngularVelocity(v, 0, 0, 0)
+            setElementInterior(v, interior)
+            setElementDimension(v, dimension)
+            setElementInterior(p, interior)
+            setElementDimension(p, dimension)
+            setElementPosition(v, point.x, point.y, point.z)
+
+            if type(point.rotation) == "number" then
+                setElementRotation(v, 0, 0, point.rotation)
+            end
+
+            fadeCamera(p, true, 0.3)
+            triggerClientEvent(p, "bwbase:closeMenu", resourceRoot)
+        end, 350, 1, player, vehicle, base, destination)
     end
 )
 
