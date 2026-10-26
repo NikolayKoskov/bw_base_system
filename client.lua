@@ -122,7 +122,49 @@ local function drawKeyPrompt()
         C.text, 1, "default")
 end
 
+-- Не полагаемся только на onClientMarkerHit: MTA может сообщать о попадании
+-- в маркер, даже если он находится на другом уровне по высоте.
+-- Каждый кадр выбираем ближайший чекпоинт с проверкой X/Y/Z.
+local function findNearbyBaseMarker()
+    local vehicle = getPedOccupiedVehicle(localPlayer)
+    local driving = vehicle and getVehicleOccupant(vehicle, 0) == localPlayer
+    local element = driving and vehicle or (not vehicle and localPlayer)
+    if not element then return nil end
+
+    local px, py, pz = getElementPosition(element)
+    local playerInterior = getElementInterior(localPlayer)
+    local playerDimension = getElementDimension(localPlayer)
+    local bestMarker, bestDistance
+
+    for _, marker in ipairs(getElementsByType("marker", root, true)) do
+        local pointName = getElementData(marker, "bwbase:point")
+        local baseId = getElementData(marker, "bwbase:id")
+        if pointName and baseId
+            and getElementInterior(marker) == playerInterior
+            and getElementDimension(marker) == playerDimension then
+            local vehiclePoint = pointName == "vehicleEntrance"
+            local allowed = (vehiclePoint and driving) or (not vehiclePoint and not vehicle)
+            if allowed then
+                local mx = tonumber(getElementData(marker, "bwbase:pointX"))
+                local my = tonumber(getElementData(marker, "bwbase:pointY"))
+                local mz = tonumber(getElementData(marker, "bwbase:pointZ"))
+                local radius = tonumber(getElementData(marker, "bwbase:pointRadius")) or 1.5
+                if mx and my and mz and math.abs(pz - mz) <= 2.5 then
+                    local dx, dy = px - mx, py - my
+                    local distance = math.sqrt(dx * dx + dy * dy)
+                    if distance <= radius + (vehiclePoint and 1.5 or 0.75)
+                        and (not bestDistance or distance < bestDistance) then
+                        bestMarker, bestDistance = marker, distance
+                    end
+                end
+            end
+        end
+    end
+    return bestMarker
+end
+
 addEventHandler("onClientRender", root, function()
+    activeMarker = findNearbyBaseMarker()
     drawKeyPrompt()
 
     if not menuOpen or not menuData then return end
@@ -412,6 +454,12 @@ addEventHandler("onClientMarkerHit", root, function(hitElement, matchingDimensio
     local hitPlayer = hitElement == localPlayer and not vehicle
     local hitVehicle = vehicle and hitElement == vehicle
         and getVehicleOccupant(vehicle, 0) == localPlayer
+    local element = hitVehicle and vehicle or (hitPlayer and localPlayer)
+    if not element then return end
+
+    local _, _, elementZ = getElementPosition(element)
+    local pointZ = tonumber(getElementData(source, "bwbase:pointZ"))
+    if not pointZ or math.abs(elementZ - pointZ) > 2.5 then return end
 
     if pointName == "vehicleEntrance" then
         if hitVehicle then activeMarker = source end
