@@ -507,13 +507,6 @@ addEventHandler("bwbase:enterVehicle", resourceRoot,
             setElementVelocity(v, 0, 0, 0)
             setElementAngularVelocity(v, 0, 0, 0)
             setElementRotation(v, 0, 0, 0)
-            setTimer(function(vehicle)
-                if not isElement(vehicle) then return end
-                setElementVelocity(vehicle, 0, 0, 0)
-                setElementAngularVelocity(vehicle, 0, 0, 0)
-                setElementRotation(vehicle, 0, 0, 90)
-            end, 100, 1, v)
-
             fadeCamera(p, true, 0.3)
             triggerClientEvent(p, "bwbase:closeMenu", resourceRoot)
         end, 350, 1, player, vehicle, base, destination)
