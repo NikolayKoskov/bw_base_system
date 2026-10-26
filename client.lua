@@ -11,19 +11,22 @@ local activeMarker = nil
 
 local panel = { w = 600, h = 460 }
 
+-- Палитра интерфейса BlackWood: тёмный графит и лесные зелёные оттенки.
+-- Поддерживает тот же визуальный язык, что и игровые окна: спокойный фон,
+-- зелёные активные элементы и светло-зелёные акценты без красно-медных кнопок.
 local C = {
-    shadow = tocolor(0, 0, 0, 160),
-    panel = tocolor(16, 18, 18, 248),
-    panel2 = tocolor(27, 29, 28, 250),
-    panel3 = tocolor(36, 37, 34, 245),
-    copper = tocolor(156, 83, 52, 255),
-    copperHover = tocolor(188, 105, 65, 255),
-    gold = tocolor(218, 184, 130, 255),
-    text = tocolor(237, 232, 220, 255),
-    muted = tocolor(164, 164, 155, 255),
+    shadow = tocolor(0, 0, 0, 170),
+    panel = tocolor(12, 18, 15, 248),
+    panel2 = tocolor(20, 31, 24, 250),
+    panel3 = tocolor(29, 43, 33, 245),
+    greenAccent = tocolor(57, 133, 76, 255),
+    greenHover = tocolor(76, 161, 94, 255),
+    highlight = tocolor(169, 218, 166, 255),
+    text = tocolor(232, 239, 229, 255),
+    muted = tocolor(153, 171, 154, 255),
     green = tocolor(115, 197, 126, 255),
-    red = tocolor(218, 105, 91, 255),
-    border = tocolor(95, 75, 59, 220),
+    closed = tocolor(119, 145, 119, 255),
+    border = tocolor(65, 94, 69, 220),
 }
 
 local function inside(x, y, w, h)
@@ -35,14 +38,14 @@ end
 
 local function drawButton(x, y, w, h, label, primary)
     local hovered = inside(x, y, w, h)
-    local base = primary and C.copper or C.panel3
+    local base = primary and C.greenAccent or C.panel3
     if hovered then
-        base = primary and C.copperHover or tocolor(70, 59, 49, 250)
+        base = primary and C.greenHover or tocolor(39, 65, 44, 250)
     end
 
     dxDrawRectangle(x, y, w, h, base)
     dxDrawRectangle(x, y, w, 1, C.border)
-    dxDrawRectangle(x, y + h - 2, w, 2, primary and C.gold or C.copper)
+    dxDrawRectangle(x, y + h - 2, w, 2, primary and C.highlight or C.greenAccent)
     dxDrawText(label, x + 8, y, x + w - 8, y + h,
         C.text, 1, "default-bold", "center", "center", true, true)
 end
@@ -108,12 +111,12 @@ local function drawKeyPrompt()
     local x, y = (sx - w) / 2, sy - 122
     dxDrawRectangle(x + 2, y + 3, w, h, C.shadow)
     dxDrawRectangle(x, y, w, h, C.panel)
-    dxDrawRectangle(x, y, 4, h, C.copper)
-    dxDrawRectangle(x + 13, y + 9, 40, 36, C.copper)
+    dxDrawRectangle(x, y, 4, h, C.greenAccent)
+    dxDrawRectangle(x + 13, y + 9, 40, 36, C.greenAccent)
     dxDrawText("E", x + 13, y + 9, x + 53, y + 45,
         C.text, 1.25, "default-bold", "center", "center")
     drawLabel("BLACKWOOD  /  ВЗАИМОДЕЙСТВИЕ", x + 65, y + 5, w - 78, 20,
-        C.gold, 0.82, "default-bold")
+        C.highlight, 0.82, "default-bold")
     drawLabel(isVehiclePoint and "Открыть меню въезда на автомобиле"
         or "Открыть меню базы", x + 65, y + 25, w - 78, 22,
         C.text, 1, "default")
@@ -130,11 +133,11 @@ addEventHandler("onClientRender", root, function()
     dxDrawRectangle(x + 5, y + 6, panel.w, panel.h, C.shadow)
     dxDrawRectangle(x, y, panel.w, panel.h, C.panel)
     dxDrawRectangle(x, y, panel.w, 58, C.panel2)
-    dxDrawRectangle(x, y, 5, panel.h, C.copper)
-    dxDrawRectangle(x + 5, y + 56, panel.w - 5, 2, C.copper)
-    dxDrawRectangle(x + 18, y + 15, 3, 28, C.gold)
+    dxDrawRectangle(x, y, 5, panel.h, C.greenAccent)
+    dxDrawRectangle(x + 5, y + 56, panel.w - 5, 2, C.greenAccent)
+    dxDrawRectangle(x + 18, y + 15, 3, 28, C.highlight)
 
-    drawLabel("BLACKWOOD", x + 32, y + 8, 220, 24, C.gold, 1.12, "default-bold")
+    drawLabel("BLACKWOOD", x + 32, y + 8, 220, 24, C.highlight, 1.12, "default-bold")
     drawLabel("СИСТЕМА БАЗ  /  ГЛЕНДЕЙЛ", x + 32, y + 31, 300, 17,
         C.muted, 0.8, "default-bold")
     drawLabel(string.upper(tostring(d.name or "БАЗА")), x + 300, y + 13,
@@ -149,11 +152,11 @@ addEventHandler("onClientRender", root, function()
     end
 
     dxDrawRectangle(x + 22, y + 75, panel.w - 44, 48, C.panel2)
-    dxDrawRectangle(x + 22, y + 75, 3, 48, d.active and C.green or C.copper)
+    dxDrawRectangle(x + 22, y + 75, 3, 48, d.active and C.green or C.greenAccent)
     drawLabel(leaseText, x + 36, y + 77, 330, 22,
-        d.active and C.green or C.gold, 0.92, "default-bold")
+        d.active and C.green or C.highlight, 0.92, "default-bold")
     drawLabel("ЖЕТОНЫ  " .. tostring(d.tokens or 0), x + 36, y + 98,
-        panel.w - 72, 19, C.gold, 0.9, "default-bold")
+        panel.w - 72, 19, C.highlight, 0.9, "default-bold")
 
     if d.mode == "outside" or d.mode == "vehicle" then
         if rentAction == "extend" or not d.active then
@@ -168,7 +171,7 @@ addEventHandler("onClientRender", root, function()
 
             drawLabel("Стоимость: " .. (selectedDays * (d.pricePerDay or 0))
                 .. " Жетонов", x + 26, y + 207, panel.w - 52, 25,
-                C.gold, 1, "default-bold")
+                C.highlight, 1, "default-bold")
 
             drawButton(x + 22, y + 247, panel.w - 44, 42,
                 rentAction == "extend" and "ПРОДЛИТЬ АРЕНДУ" or "АРЕНДОВАТЬ БАЗУ", true)
@@ -194,7 +197,7 @@ addEventHandler("onClientRender", root, function()
                 end
             else
                 drawLabel("БАЗА УЖЕ АРЕНДОВАНА", x + 26, y + 155,
-                    panel.w - 52, 30, C.gold, 1.05, "default-bold")
+                    panel.w - 52, 30, C.highlight, 1.05, "default-bold")
                 drawLabel("Владелец закрыл доступ для посторонних.",
                     x + 26, y + 190, panel.w - 52, 25, C.muted, 0.95)
             end
@@ -208,18 +211,18 @@ addEventHandler("onClientRender", root, function()
             end
         else
             drawLabel("ЭТА БАЗА УЖЕ АРЕНДОВАНА", x + 26, y + 155,
-                panel.w - 52, 30, C.gold, 1.05, "default-bold")
+                panel.w - 52, 30, C.highlight, 1.05, "default-bold")
             drawLabel("Войти может владелец и игроки с доступом.",
                 x + 26, y + 190, panel.w - 52, 25, C.muted, 0.95)
         end
     else
         drawLabel("ПАРАМЕТРЫ БАЗЫ", x + 26, y + 132,
-            panel.w - 52, 24, C.gold, 0.95, "default-bold")
+            panel.w - 52, 24, C.highlight, 0.95, "default-bold")
         drawLabel("Транспорт: " .. tostring(d.vehicleLimit or 1)
             .. " шт.  /  Доступ посторонним: "
             .. (d.isOpen and "ОТКРЫТ" or "ЗАКРЫТ"),
             x + 26, y + 158, panel.w - 52, 25,
-            d.isOpen and C.green or C.red, 0.92, "default-bold")
+            d.isOpen and C.green or C.closed, 0.92, "default-bold")
 
         if d.owner then
             drawButton(x + 22, y + 197, 267, 36,
@@ -229,7 +232,7 @@ addEventHandler("onClientRender", root, function()
                 "ПРОДЛИТЬ АРЕНДУ", false)
 
             drawLabel("УЧАСТНИКИ БАЗЫ", x + 26, y + 286,
-                panel.w - 52, 20, C.gold, 0.82, "default-bold")
+                panel.w - 52, 20, C.highlight, 0.82, "default-bold")
             local members = type(d.members) == "table" and d.members or {}
             if #members == 0 then
                 drawLabel("Дополнительных участников нет.", x + 26, y + 307,
@@ -258,9 +261,9 @@ addEventHandler("onClientRender", root, function()
         dxDrawRectangle(px + 4, py + 5, pw, ph, C.shadow)
         dxDrawRectangle(px, py, pw, ph, C.panel)
         dxDrawRectangle(px, py, pw, 46, C.panel2)
-        dxDrawRectangle(px, py, 4, ph, C.copper)
+        dxDrawRectangle(px, py, 4, ph, C.greenAccent)
         drawLabel("BLACKWOOD  /  ВЫБОР ИГРОКА", px + 18, py, pw - 36, 46,
-            C.gold, 0.95, "default-bold")
+            C.highlight, 0.95, "default-bold")
 
         if #onlinePlayers == 0 then
             drawLabel("Нет доступных игроков онлайн.", px + 16, py + 65,
@@ -270,7 +273,7 @@ addEventHandler("onClientRender", root, function()
                 local rowY = py + 56 + (i - 1) * 31
                 if rowY < py + ph - 52 then
                     dxDrawRectangle(px + 14, rowY, pw - 28, 27,
-                        i == selectedPlayer and C.copper or C.panel2)
+                        i == selectedPlayer and C.greenAccent or C.panel2)
                     drawLabel(tostring(p.name or "Игрок"), px + 24, rowY,
                         pw - 48, 27, C.text, 0.9)
                 end
