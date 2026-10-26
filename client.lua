@@ -1,42 +1,62 @@
 local sx, sy = guiGetScreenSize()
+
 local menuData = nil
 local menuOpen = false
 local selectedDays = 3
+local rentAction = "rent"
 local onlinePlayers = {}
 local showPlayers = false
 local selectedPlayer = 1
 local activeMarker = nil
 
-local panel = {
-    w = 560,
-    h = 430,
+local panel = { w = 600, h = 460 }
+
+local C = {
+    shadow = tocolor(0, 0, 0, 160),
+    panel = tocolor(16, 18, 18, 248),
+    panel2 = tocolor(27, 29, 28, 250),
+    panel3 = tocolor(36, 37, 34, 245),
+    copper = tocolor(156, 83, 52, 255),
+    copperHover = tocolor(188, 105, 65, 255),
+    gold = tocolor(218, 184, 130, 255),
+    text = tocolor(237, 232, 220, 255),
+    muted = tocolor(164, 164, 155, 255),
+    green = tocolor(115, 197, 126, 255),
+    red = tocolor(218, 105, 91, 255),
+    border = tocolor(95, 75, 59, 220),
 }
 
 local function inside(x, y, w, h)
     local cx, cy = getCursorPosition()
     if not cx or not cy then return false end
-
     cx, cy = cx * sx, cy * sy
-    return cx >= x and cx <= x + w
-        and cy >= y and cy <= y + h
+    return cx >= x and cx <= x + w and cy >= y and cy <= y + h
 end
 
-local function drawButton(x, y, w, h, label, color)
+local function drawButton(x, y, w, h, label, primary)
     local hovered = inside(x, y, w, h)
-    local c = hovered and tocolor(95, 55, 40, 245)
-        or (color or tocolor(45, 45, 45, 235))
+    local base = primary and C.copper or C.panel3
+    if hovered then
+        base = primary and C.copperHover or tocolor(70, 59, 49, 250)
+    end
 
-    dxDrawRectangle(x, y, w, h, c)
-    dxDrawRectangle(x, y + h - 2, w, 2, tocolor(160, 100, 65, 230))
-    dxDrawText(label, x, y, x + w, y + h,
-        tocolor(245, 238, 225), 1, "default-bold",
-        "center", "center", true, true)
+    dxDrawRectangle(x, y, w, h, base)
+    dxDrawRectangle(x, y, w, 1, C.border)
+    dxDrawRectangle(x, y + h - 2, w, 2, primary and C.gold or C.copper)
+    dxDrawText(label, x + 8, y, x + w - 8, y + h,
+        C.text, 1, "default-bold", "center", "center", true, true)
+end
+
+local function drawLabel(label, x, y, w, h, color, scale, font, align)
+    dxDrawText(label, x, y, x + w, y + h, color or C.text,
+        scale or 1, font or "default", align or "left", "center", true, true)
 end
 
 local function closeMenu()
     menuOpen = false
     showPlayers = false
     menuData = nil
+    rentAction = "rent"
     showCursor(false)
 end
 
@@ -47,7 +67,11 @@ addEventHandler("bwbase:openMenu", resourceRoot, function(data)
     menuData = data
     menuOpen = true
     showPlayers = false
-    selectedDays = math.max(3, tonumber(data.minRentDays) or 3)
+    rentAction = "rent"
+    selectedDays = math.max(
+        tonumber(data.minRentDays) or 3,
+        math.min(tonumber(data.maxRentDays) or 30, selectedDays)
+    )
     showCursor(true)
 end)
 
@@ -67,143 +91,222 @@ addEventHandler("bwbase:onlinePlayers", resourceRoot, function(players)
     showPlayers = true
 end)
 
-addEventHandler("onClientRender", root, function()
-    if not menuOpen or not menuData then return end
+local function drawKeyPrompt()
+    if menuOpen or not isElement(activeMarker) then return end
 
-    local x = (sx - panel.w) / 2
-    local y = (sy - panel.h) / 2
-    local d = menuData
+    local pointName = getElementData(activeMarker, "bwbase:point")
+    local isVehiclePoint = pointName == "vehicleEntrance"
+    local vehicle = getPedOccupiedVehicle(localPlayer)
 
-    dxDrawRectangle(x, y, panel.w, panel.h, tocolor(15, 16, 16, 242))
-    dxDrawRectangle(x, y, panel.w, 48, tocolor(35, 37, 35, 250))
-    dxDrawRectangle(x, y + 46, panel.w, 2, tocolor(155, 95, 55, 255))
-
-    dxDrawText("BLACKWOOD  /  " .. tostring(d.name),
-        x + 18, y, x + panel.w - 18, y + 46,
-        tocolor(238, 218, 190), 1.05, "default-bold",
-        "left", "center", true, false)
-
-    local leaseText = d.active
-        and ("Аренда до: " .. os.date("%d.%m.%Y %H:%M", d.leaseUntil))
-        or "Статус: свободна"
-
-    dxDrawText(leaseText, x + 22, y + 65, x + panel.w - 22, y + 90,
-        tocolor(225, 225, 225), 1, "default", "left", "center")
-
-    dxDrawText("Токены: " .. tostring(d.tokens or 0),
-        x + 22, y + 92, x + panel.w - 22, y + 115,
-        tocolor(215, 190, 135), 1, "default", "left", "center")
-
-    if d.mode == "outside" then
-        if not d.active then
-            dxDrawText("Срок аренды: " .. selectedDays .. " дней",
-                x + 22, y + 130, x + 300, y + 160,
-                tocolor(235, 235, 235), 1, "default-bold", "left", "center")
-
-            drawButton(x + 320, y + 130, 45, 30, "-", tocolor(55, 55, 55, 240))
-            drawButton(x + 370, y + 130, 45, 30, "+", tocolor(55, 55, 55, 240))
-
-            dxDrawText("Цена: " .. (selectedDays * (d.pricePerDay or 0))
-                .. " токенов",
-                x + 22, y + 165, x + panel.w - 22, y + 190,
-                tocolor(215, 190, 135), 1, "default", "left", "center")
-
-            drawButton(x + 22, y + 205, panel.w - 44, 38, "АРЕНДОВАТЬ БАЗУ")
-        elseif d.hasAccess then
-            drawButton(x + 22, y + 145, panel.w - 44, 40, "ВОЙТИ НА БАЗУ")
-            if d.owner then
-                drawButton(x + 22, y + 195, panel.w - 44, 36, "ПРОДЛИТЬ АРЕНДУ")
-            end
-        else
-            dxDrawText("Эта база уже арендована.",
-                x + 22, y + 145, x + panel.w - 22, y + 185,
-                tocolor(220, 170, 130), 1, "default", "left", "center")
-        end
-    else
-        dxDrawText("Транспорт: " .. tostring(d.vehicleLimit)
-            .. " шт. максимум",
-            x + 22, y + 125, x + panel.w - 22, y + 150,
-            tocolor(220, 220, 220), 1, "default", "left", "center")
-
-        dxDrawText("Доступ посторонним: "
-            .. (d.isOpen and "ОТКРЫТ" or "ЗАКРЫТ"),
-            x + 22, y + 153, x + panel.w - 22, y + 178,
-            d.isOpen and tocolor(120, 220, 130) or tocolor(240, 110, 100),
-            1, "default-bold", "left", "center")
-
-        if d.owner then
-            drawButton(x + 22, y + 190, 250, 34,
-                d.isOpen and "ЗАКРЫТЬ БАЗУ" or "ОТКРЫТЬ БАЗУ")
-            drawButton(x + 288, y + 190, 250, 34, "ДОБАВИТЬ ИГРОКА")
-            drawButton(x + 22, y + 237, 250, 34, "ПРОДЛИТЬ АРЕНДУ")
-        end
-
-        drawButton(x + 22, y + 285, panel.w - 44, 34, "ВЫЙТИ ИЗ БАЗЫ")
+    if isVehiclePoint and (not vehicle or getVehicleOccupant(vehicle, 0) ~= localPlayer) then
+        return
+    elseif not isVehiclePoint and vehicle then
+        return
     end
 
-    drawButton(x + 22, y + panel.h - 52, panel.w - 44, 32, "ЗАКРЫТЬ МЕНЮ",
-        tocolor(55, 40, 35, 245))
+    local w, h = 390, 54
+    local x, y = (sx - w) / 2, sy - 122
+    dxDrawRectangle(x + 2, y + 3, w, h, C.shadow)
+    dxDrawRectangle(x, y, w, h, C.panel)
+    dxDrawRectangle(x, y, 4, h, C.copper)
+    dxDrawRectangle(x + 13, y + 9, 40, 36, C.copper)
+    dxDrawText("E", x + 13, y + 9, x + 53, y + 45,
+        C.text, 1.25, "default-bold", "center", "center")
+    drawLabel("BLACKWOOD  /  ВЗАИМОДЕЙСТВИЕ", x + 65, y + 5, w - 78, 20,
+        C.gold, 0.82, "default-bold")
+    drawLabel(isVehiclePoint and "Открыть меню въезда на автомобиле"
+        or "Открыть меню базы", x + 65, y + 25, w - 78, 22,
+        C.text, 1, "default")
+end
+
+addEventHandler("onClientRender", root, function()
+    drawKeyPrompt()
+
+    if not menuOpen or not menuData then return end
+
+    local x, y = (sx - panel.w) / 2, (sy - panel.h) / 2
+    local d = menuData
+
+    dxDrawRectangle(x + 5, y + 6, panel.w, panel.h, C.shadow)
+    dxDrawRectangle(x, y, panel.w, panel.h, C.panel)
+    dxDrawRectangle(x, y, panel.w, 58, C.panel2)
+    dxDrawRectangle(x, y, 5, panel.h, C.copper)
+    dxDrawRectangle(x + 5, y + 56, panel.w - 5, 2, C.copper)
+    dxDrawRectangle(x + 18, y + 15, 3, 28, C.gold)
+
+    drawLabel("BLACKWOOD", x + 32, y + 8, 220, 24, C.gold, 1.12, "default-bold")
+    drawLabel("СИСТЕМА БАЗ  /  ГЛЕНДЕЙЛ", x + 32, y + 31, 300, 17,
+        C.muted, 0.8, "default-bold")
+    drawLabel(string.upper(tostring(d.name or "БАЗА")), x + 300, y + 13,
+        panel.w - 325, 28, C.text, 0.95, "default-bold", "right")
+
+    local leaseText
+    if d.active then
+        leaseText = "АРЕНДА ДО  " .. os.date("%d.%m.%Y  %H:%M",
+            tonumber(d.leaseUntil) or 0)
+    else
+        leaseText = "СТАТУС  /  СВОБОДНА"
+    end
+
+    dxDrawRectangle(x + 22, y + 75, panel.w - 44, 48, C.panel2)
+    dxDrawRectangle(x + 22, y + 75, 3, 48, d.active and C.green or C.copper)
+    drawLabel(leaseText, x + 36, y + 77, 330, 22,
+        d.active and C.green or C.gold, 0.92, "default-bold")
+    drawLabel("ЖЕТОНЫ  " .. tostring(d.tokens or 0), x + 36, y + 98,
+        panel.w - 72, 19, C.gold, 0.9, "default-bold")
+
+    if d.mode == "outside" or d.mode == "vehicle" then
+        if rentAction == "extend" or not d.active then
+            drawLabel(rentAction == "extend" and "ПРОДЛЕНИЕ АРЕНДЫ"
+                or "АРЕНДА БАЗЫ", x + 26, y + 137, 260, 25,
+                C.text, 1, "default-bold")
+
+            drawLabel("Срок: " .. selectedDays .. " дней", x + 26, y + 166,
+                245, 34, C.text, 1.05, "default-bold")
+            drawButton(x + 300, y + 166, 48, 34, "−", false)
+            drawButton(x + 354, y + 166, 48, 34, "+", false)
+
+            drawLabel("Стоимость: " .. (selectedDays * (d.pricePerDay or 0))
+                .. " Жетонов", x + 26, y + 207, panel.w - 52, 25,
+                C.gold, 1, "default-bold")
+
+            drawButton(x + 22, y + 247, panel.w - 44, 42,
+                rentAction == "extend" and "ПРОДЛИТЬ АРЕНДУ" or "АРЕНДОВАТЬ БАЗУ", true)
+            if rentAction == "extend" then
+                drawLabel("Оплата спишется после подтверждения сервером.",
+                    x + 25, y + 293, panel.w - 50, 22, C.muted, 0.85)
+            else
+                drawLabel("Минимум " .. tostring(d.minRentDays) .. " дн.  /  Максимум "
+                    .. tostring(d.maxRentDays) .. " дн.",
+                    x + 25, y + 293, panel.w - 50, 22, C.muted, 0.85)
+            end
+        elseif d.mode == "vehicle" then
+            if d.hasAccess or d.isOpen then
+                drawLabel("ВЪЕЗД НА АВТОМОБИЛЕ", x + 26, y + 143,
+                    panel.w - 52, 27, C.text, 1.05, "default-bold")
+                drawLabel("Вы и автомобиль будете перемещены на парковку базы.",
+                    x + 26, y + 174, panel.w - 52, 27, C.muted, 0.92)
+                drawButton(x + 22, y + 216, panel.w - 44, 44,
+                    "ЗАЕХАТЬ НА БАЗУ", true)
+                if d.owner then
+                    drawButton(x + 22, y + 272, panel.w - 44, 36,
+                        "ПРОДЛИТЬ АРЕНДУ", false)
+                end
+            else
+                drawLabel("БАЗА УЖЕ АРЕНДОВАНА", x + 26, y + 155,
+                    panel.w - 52, 30, C.gold, 1.05, "default-bold")
+                drawLabel("Владелец закрыл доступ для посторонних.",
+                    x + 26, y + 190, panel.w - 52, 25, C.muted, 0.95)
+            end
+        elseif d.hasAccess or d.isOpen then
+            drawLabel("ДОСТУП К БАЗЕ РАЗРЕШЁН", x + 26, y + 145,
+                panel.w - 52, 27, C.green, 1, "default-bold")
+            drawButton(x + 22, y + 185, panel.w - 44, 42, "ВОЙТИ НА БАЗУ", true)
+            if d.owner then
+                drawButton(x + 22, y + 239, panel.w - 44, 36,
+                    "ПРОДЛИТЬ АРЕНДУ", false)
+            end
+        else
+            drawLabel("ЭТА БАЗА УЖЕ АРЕНДОВАНА", x + 26, y + 155,
+                panel.w - 52, 30, C.gold, 1.05, "default-bold")
+            drawLabel("Войти может владелец и игроки с доступом.",
+                x + 26, y + 190, panel.w - 52, 25, C.muted, 0.95)
+        end
+    else
+        drawLabel("ПАРАМЕТРЫ БАЗЫ", x + 26, y + 132,
+            panel.w - 52, 24, C.gold, 0.95, "default-bold")
+        drawLabel("Транспорт: " .. tostring(d.vehicleLimit or 1)
+            .. " шт.  /  Доступ посторонним: "
+            .. (d.isOpen and "ОТКРЫТ" or "ЗАКРЫТ"),
+            x + 26, y + 158, panel.w - 52, 25,
+            d.isOpen and C.green or C.red, 0.92, "default-bold")
+
+        if d.owner then
+            drawButton(x + 22, y + 197, 267, 36,
+                d.isOpen and "ЗАКРЫТЬ ДОСТУП" or "ОТКРЫТЬ ДОСТУП", false)
+            drawButton(x + 299, y + 197, 279, 36, "ДОБАВИТЬ ИГРОКА", true)
+            drawButton(x + 22, y + 244, panel.w - 44, 34,
+                "ПРОДЛИТЬ АРЕНДУ", false)
+
+            drawLabel("УЧАСТНИКИ БАЗЫ", x + 26, y + 286,
+                panel.w - 52, 20, C.gold, 0.82, "default-bold")
+            local members = type(d.members) == "table" and d.members or {}
+            if #members == 0 then
+                drawLabel("Дополнительных участников нет.", x + 26, y + 307,
+                    panel.w - 52, 20, C.muted, 0.86)
+            else
+                for i, member in ipairs(members) do
+                    if i <= 4 then
+                        drawLabel("•  " .. tostring(member.name or "Игрок"),
+                            x + 28, y + 304 + (i - 1) * 19, 330, 19, C.text, 0.82)
+                    end
+                end
+            end
+            drawButton(x + 22, y + 365, panel.w - 44, 32, "ВЫЙТИ ИЗ БАЗЫ", true)
+        else
+            drawLabel("Вы находитесь внутри арендованной базы.",
+                x + 26, y + 205, panel.w - 52, 25, C.muted, 0.95)
+            drawButton(x + 22, y + 265, panel.w - 44, 40, "ВЫЙТИ ИЗ БАЗЫ", true)
+        end
+    end
+
+    drawButton(x + 22, y + panel.h - 42, panel.w - 44, 28, "ЗАКРЫТЬ ОКНО", false)
 
     if showPlayers then
-        local px, py, pw, ph = (sx - 420) / 2, (sy - 300) / 2, 420, 300
-        dxDrawRectangle(px, py, pw, ph, tocolor(12, 13, 13, 250))
-        dxDrawRectangle(px, py, pw, 40, tocolor(40, 40, 38, 255))
-        dxDrawText("ВЫБЕРИ ИГРОКА", px, py, px + pw, py + 40,
-            tocolor(235, 215, 185), 1, "default-bold", "center", "center")
+        local pw, ph = 430, 320
+        local px, py = (sx - pw) / 2, (sy - ph) / 2
+        dxDrawRectangle(px + 4, py + 5, pw, ph, C.shadow)
+        dxDrawRectangle(px, py, pw, ph, C.panel)
+        dxDrawRectangle(px, py, pw, 46, C.panel2)
+        dxDrawRectangle(px, py, 4, ph, C.copper)
+        drawLabel("BLACKWOOD  /  ВЫБОР ИГРОКА", px + 18, py, pw - 36, 46,
+            C.gold, 0.95, "default-bold")
 
         if #onlinePlayers == 0 then
-            dxDrawText("Нет доступных игроков онлайн.",
-                px + 15, py + 65, px + pw - 15, py + 100,
-                tocolor(220, 220, 220), 1, "default", "center", "center")
+            drawLabel("Нет доступных игроков онлайн.", px + 16, py + 65,
+                pw - 32, 35, C.muted, 0.95)
         else
             for i, p in ipairs(onlinePlayers) do
-                local rowY = py + 48 + (i - 1) * 28
-                if rowY < py + ph - 48 then
-                    local color = i == selectedPlayer
-                        and tocolor(105, 65, 40, 240)
-                        or tocolor(35, 35, 35, 220)
-                    dxDrawRectangle(px + 12, rowY, pw - 24, 25, color)
-                    dxDrawText(p.name, px + 20, rowY, px + pw - 20, rowY + 25,
-                        tocolor(240, 240, 240), 1, "default", "left", "center")
+                local rowY = py + 56 + (i - 1) * 31
+                if rowY < py + ph - 52 then
+                    dxDrawRectangle(px + 14, rowY, pw - 28, 27,
+                        i == selectedPlayer and C.copper or C.panel2)
+                    drawLabel(tostring(p.name or "Игрок"), px + 24, rowY,
+                        pw - 48, 27, C.text, 0.9)
                 end
             end
         end
 
-        drawButton(px + 12, py + ph - 38, 190, 28, "ДОБАВИТЬ")
-        drawButton(px + 218, py + ph - 38, 190, 28, "НАЗАД")
+        drawButton(px + 14, py + ph - 42, 194, 30, "ДОБАВИТЬ", true)
+        drawButton(px + 222, py + ph - 42, 194, 30, "НАЗАД", false)
     end
 end)
 
-addEventHandler("onClientClick", root, function(button, state, cx, cy)
-    if button ~= "left" or state ~= "down" then return end
+addEventHandler("onClientClick", root, function(button, state)
+    if button ~= "left" or state ~= "down" or not menuOpen or not menuData then return end
 
-    -- Принимаем клики только внутри открытого меню.
-    if not menuOpen or not menuData then return end
-
-    local x = (sx - panel.w) / 2
-    local y = (sy - panel.h) / 2
+    local x, y = (sx - panel.w) / 2, (sy - panel.h) / 2
     local d = menuData
 
     if showPlayers then
-        local px, py, pw, ph = (sx - 420) / 2, (sy - 300) / 2, 420, 300
+        local pw, ph = 430, 320
+        local px, py = (sx - pw) / 2, (sy - ph) / 2
 
-        if inside(px + 12, py + ph - 38, 190, 28) then
+        if inside(px + 14, py + ph - 42, 194, 30) then
             local p = onlinePlayers[selectedPlayer]
             if p and p.serial then
                 triggerServerEvent("bwbase:addMember", resourceRoot, d.id, p.serial)
                 showPlayers = false
             end
             return
-        end
-
-        if inside(px + 218, py + ph - 38, 190, 28) then
+        elseif inside(px + 222, py + ph - 42, 194, 30) then
             showPlayers = false
             return
         end
 
         for i, p in ipairs(onlinePlayers) do
-            local rowY = py + 48 + (i - 1) * 28
-            if rowY < py + ph - 48 and inside(px + 12, rowY, pw - 24, 25) then
+            local rowY = py + 56 + (i - 1) * 31
+            if rowY < py + ph - 52 and inside(px + 14, rowY, pw - 28, 27) then
                 selectedPlayer = i
                 return
             end
@@ -211,68 +314,66 @@ addEventHandler("onClientClick", root, function(button, state, cx, cy)
         return
     end
 
-    if inside(x + 22, y + panel.h - 52, panel.w - 44, 32) then
+    if inside(x + 22, y + panel.h - 42, panel.w - 44, 28) then
         closeMenu()
         return
     end
 
-    if d.mode == "outside" then
-        if not d.active then
-            if inside(x + 320, y + 130, 45, 30) then
-                selectedDays = math.max(d.minRentDays, selectedDays - 1)
+    if d.mode == "outside" or d.mode == "vehicle" then
+        if rentAction == "extend" or not d.active then
+            if inside(x + 300, y + 166, 48, 34) then
+                selectedDays = math.max(tonumber(d.minRentDays) or 3, selectedDays - 1)
                 return
-            end
-            if inside(x + 370, y + 130, 45, 30) then
-                selectedDays = math.min(d.maxRentDays, selectedDays + 1)
+            elseif inside(x + 354, y + 166, 48, 34) then
+                selectedDays = math.min(tonumber(d.maxRentDays) or 30, selectedDays + 1)
                 return
-            end
-            if inside(x + 22, y + 205, panel.w - 44, 38) then
-                if d.extendMode then
-                triggerServerEvent("bwbase:extend", resourceRoot, d.id, selectedDays)
+            elseif inside(x + 22, y + 247, panel.w - 44, 42) then
+                if rentAction == "extend" then
+                    triggerServerEvent("bwbase:extend", resourceRoot, d.id, selectedDays)
                 else
-                triggerServerEvent("bwbase:rent", resourceRoot, d.id, selectedDays)
+                    triggerServerEvent("bwbase:rent", resourceRoot, d.id, selectedDays)
+                end
+                return
             end
-            return
+        elseif d.mode == "vehicle" then
+            if (d.hasAccess or d.isOpen) and inside(x + 22, y + 216, panel.w - 44, 44) then
+                triggerServerEvent("bwbase:enterVehicle", resourceRoot, d.id)
+                return
             end
-        elseif d.hasAccess then
-            if inside(x + 22, y + 145, panel.w - 44, 40) then
+            if d.owner and inside(x + 22, y + 272, panel.w - 44, 36) then
+                rentAction = "extend"
+                selectedDays = tonumber(d.minRentDays) or 3
+                return
+            end
+        else
+            if (d.hasAccess or d.isOpen) and inside(x + 22, y + 185, panel.w - 44, 42) then
                 triggerServerEvent("bwbase:enter", resourceRoot, d.id)
                 return
             end
-            if d.owner and inside(x + 22, y + 195, panel.w - 44, 36) then
-                showCursor(false)
-                -- Для продления используем то же окно выбора срока.
-                d.active = false
-                d.mode = "outside"
-                d.extendMode = true
-                menuData = d
-                showCursor(true)
+            if d.owner and inside(x + 22, y + 239, panel.w - 44, 36) then
+                rentAction = "extend"
+                selectedDays = tonumber(d.minRentDays) or 3
                 return
             end
         end
     else
         if d.owner then
-            if inside(x + 22, y + 190, 250, 34) then
-                triggerServerEvent("bwbase:toggleOpen", resourceRoot,
-                    d.id, not d.isOpen)
+            if inside(x + 22, y + 197, 267, 36) then
+                triggerServerEvent("bwbase:toggleOpen", resourceRoot, d.id, not d.isOpen)
                 return
-            end
-            if inside(x + 288, y + 190, 250, 34) then
+            elseif inside(x + 299, y + 197, 279, 36) then
                 triggerServerEvent("bwbase:requestOnlinePlayers", resourceRoot, d.id)
                 return
-            end
-            if inside(x + 22, y + 237, 250, 34) then
-                -- Продление будет отправлено после выбора срока.
-                selectedDays = d.minRentDays or 3
-                d.extendMode = true
-                d.mode = "outside"
-                d.active = false
-                menuData = d
+            elseif inside(x + 22, y + 244, panel.w - 44, 34) then
+                rentAction = "extend"
+                menuData.mode = "outside"
+                selectedDays = tonumber(d.minRentDays) or 3
+                return
+            elseif inside(x + 22, y + 365, panel.w - 44, 32) then
+                triggerServerEvent("bwbase:exit", resourceRoot, d.id)
                 return
             end
-        end
-
-        if inside(x + 22, y + 285, panel.w - 44, 34) then
+        elseif inside(x + 22, y + 265, panel.w - 44, 40) then
             triggerServerEvent("bwbase:exit", resourceRoot, d.id)
             return
         end
@@ -288,26 +389,44 @@ addEventHandler("onClientKey", root, function(key, press)
         return
     end
 
-    if key == "e" and isElement(activeMarker) then
+    if key == "e" and not menuOpen and isElement(activeMarker) then
         local baseId = getElementData(activeMarker, "bwbase:id")
         local pointName = getElementData(activeMarker, "bwbase:point")
         if baseId and pointName then
             triggerServerEvent("bwbase:interact", resourceRoot, baseId, pointName)
+            cancelEvent()
         end
     end
 end)
 
 addEventHandler("onClientMarkerHit", root, function(hitElement, matchingDimension)
-    if hitElement ~= localPlayer or not matchingDimension then return end
+    if not matchingDimension then return end
 
-    if getElementData(source, "bwbase:id") then
+    local pointName = getElementData(source, "bwbase:point")
+    if not pointName or not getElementData(source, "bwbase:id") then return end
+
+    local vehicle = getPedOccupiedVehicle(localPlayer)
+    local hitPlayer = hitElement == localPlayer and not vehicle
+    local hitVehicle = vehicle and hitElement == vehicle
+        and getVehicleOccupant(vehicle, 0) == localPlayer
+
+    if pointName == "vehicleEntrance" then
+        if hitVehicle then activeMarker = source end
+    elseif hitPlayer then
         activeMarker = source
-        outputChatBox("[BlackWood] Нажми E для взаимодействия.", 220, 190, 140)
     end
 end)
 
 addEventHandler("onClientMarkerLeave", root, function(leaveElement)
-    if leaveElement == localPlayer and activeMarker == source then
+    local vehicle = getPedOccupiedVehicle(localPlayer)
+    if leaveElement == localPlayer or (vehicle and leaveElement == vehicle) then
+        if activeMarker == source then activeMarker = nil end
+    end
+end)
+
+addEventHandler("onClientVehicleExit", root, function(player)
+    if player == localPlayer and isElement(activeMarker)
+        and getElementData(activeMarker, "bwbase:point") == "vehicleEntrance" then
         activeMarker = nil
     end
 end)
