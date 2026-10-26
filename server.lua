@@ -330,7 +330,7 @@ addEventHandler("bwbase:rent", resourceRoot,
 
         local cost = days * cfg.pricePerDay
         if not takeTokens(player, cost) then
-            notify(player, "Недостаточно токенов или валюта не настроена.", 220, 70, 70)
+            notify(player, "Недостаточно Жетонов или валюта не настроена.", 220, 70, 70)
             return
         end
 
@@ -372,7 +372,7 @@ addEventHandler("bwbase:extend", resourceRoot,
 
         local cost = days * cfg.pricePerDay
         if not takeTokens(player, cost) then
-            notify(player, "Недостаточно токенов или валюта не настроена.", 220, 70, 70)
+            notify(player, "Недостаточно Жетонов или валюта не настроена.", 220, 70, 70)
             return
         end
 
