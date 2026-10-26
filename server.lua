@@ -158,8 +158,19 @@ local function pointDistance(player, point)
     return math.sqrt(dx * dx + dy * dy + dz * dz)
 end
 
-local function nearPoint(player, point, maxDistance)
-    return pointDistance(player, point) <= (maxDistance or 3)
+-- Проверка близости к точке с отдельным ограничением по высоте.
+-- Это не позволяет активировать подземные чекпоинты с поверхности.
+local function nearPoint(element, point, maxDistance, maxHeightDifference)
+    if not isElement(element) or not validCoords(point) then return false end
+
+    local x, y, z = getElementPosition(element)
+    local dx, dy = x - point.x, y - point.y
+    local dz = z - point.z
+    if math.abs(dz) > (maxHeightDifference or 2.5) then
+        return false
+    end
+
+    return math.sqrt(dx * dx + dy * dy + dz * dz) <= (maxDistance or 3)
 end
 
 local function createPoint(baseId, pointName, point, markerType)
@@ -175,6 +186,11 @@ local function createPoint(baseId, pointName, point, markerType)
     if not marker then return end
     setElementData(marker, "bwbase:id", tostring(baseId), true)
     setElementData(marker, "bwbase:point", tostring(pointName), true)
+    -- Эти координаты синхронизируются клиенту для проверки высоты чекпоинта.
+    setElementData(marker, "bwbase:pointX", point.x, true)
+    setElementData(marker, "bwbase:pointY", point.y, true)
+    setElementData(marker, "bwbase:pointZ", point.z, true)
+    setElementData(marker, "bwbase:pointRadius", point.markerSize or 1.5, true)
     setElementInterior(marker, point.interior or 0)
     setElementDimension(marker, point.dimension or 0)
 
@@ -271,7 +287,7 @@ addEventHandler("bwbase:interact", resourceRoot,
                 return
             end
 
-            if not nearPoint(vehicle, vehiclePoint, 10) then return end
+            if not nearPoint(vehicle, vehiclePoint, 6, 3.0) then return end
             sendMenu(player, baseId, "vehicle")
 
         elseif pointName == "entrance" then
@@ -445,7 +461,7 @@ addEventHandler("bwbase:enterVehicle", resourceRoot,
             return
         end
 
-        if not nearPoint(vehicle, base.vehicleEntrance or base.entrance, 10) then
+        if not nearPoint(vehicle, base.vehicleEntrance or base.entrance, 6, 3.0) then
             notify(player, "Подъедьте к въездному чекпоинту базы.", 220, 70, 70)
             return
         end
