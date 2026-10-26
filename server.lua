@@ -180,7 +180,7 @@ local function createPoint(baseId, pointName, point, markerType)
         point.x, point.y, point.z - 1,
         markerType or "cylinder",
         point.markerSize or 1.5,
-        255, 255, 255, 127
+        255, 255, 255, 178
     )
 
     if not marker then return end
@@ -502,11 +502,11 @@ addEventHandler("bwbase:enterVehicle", resourceRoot,
             setElementDimension(p, dimension)
             -- Задаём направление и до, и после перемещения: некоторые модели
             -- могут сбрасывать поворот при смене измерения/позиции.
-            setElementRotation(v, 0, 0, 90)
+            setElementRotation(v, 0, 0, 180)
             setElementPosition(v, point.x, point.y, point.z)
             setElementVelocity(v, 0, 0, 0)
             setElementAngularVelocity(v, 0, 0, 0)
-            setElementRotation(v, 0, 0, 90)
+            setElementRotation(v, 0, 0, 180)
             setTimer(function(vehicle)
                 if not isElement(vehicle) then return end
                 setElementVelocity(vehicle, 0, 0, 0)
