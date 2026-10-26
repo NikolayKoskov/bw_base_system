@@ -99,11 +99,15 @@ local function drawKeyPrompt()
 
     local pointName = getElementData(activeMarker, "bwbase:point")
     local isVehiclePoint = pointName == "vehicleEntrance"
+    local isVehicleExit = pointName == "exit"
+        and getPedOccupiedVehicle(localPlayer)
+        and getVehicleOccupant(getPedOccupiedVehicle(localPlayer), 0) == localPlayer
     local vehicle = getPedOccupiedVehicle(localPlayer)
 
-    if isVehiclePoint and (not vehicle or getVehicleOccupant(vehicle, 0) ~= localPlayer) then
+    if (isVehiclePoint or isVehicleExit)
+        and (not vehicle or getVehicleOccupant(vehicle, 0) ~= localPlayer) then
         return
-    elseif not isVehiclePoint and vehicle then
+    elseif not isVehiclePoint and not isVehicleExit and vehicle then
         return
     end
 
@@ -118,7 +122,8 @@ local function drawKeyPrompt()
     drawLabel("BLACKWOOD  /  ВЗАИМОДЕЙСТВИЕ", x + 65, y + 5, w - 78, 20,
         C.highlight, 0.82, "default-bold")
     drawLabel(isVehiclePoint and "Открыть меню въезда на автомобиле"
-        or "Открыть меню базы", x + 65, y + 25, w - 78, 22,
+        or (isVehicleExit and "Выехать на автомобиле из базы"
+        or "Открыть меню базы"), x + 65, y + 25, w - 78, 22,
         C.text, 1, "default")
 end
 
@@ -143,7 +148,10 @@ local function findNearbyBaseMarker()
             and getElementInterior(marker) == playerInterior
             and getElementDimension(marker) == playerDimension then
             local vehiclePoint = pointName == "vehicleEntrance"
-            local allowed = (vehiclePoint and driving) or (not vehiclePoint and not vehicle)
+            local vehicleExit = pointName == "exit"
+            local allowed = (vehiclePoint and driving)
+                or (vehicleExit and driving)
+                or (not vehiclePoint and not vehicleExit and not vehicle)
             if allowed then
                 local mx = tonumber(getElementData(marker, "bwbase:pointX"))
                 local my = tonumber(getElementData(marker, "bwbase:pointY"))
@@ -438,7 +446,13 @@ addEventHandler("onClientKey", root, function(key, press)
         local baseId = getElementData(activeMarker, "bwbase:id")
         local pointName = getElementData(activeMarker, "bwbase:point")
         if baseId and pointName then
-            triggerServerEvent("bwbase:interact", resourceRoot, baseId, pointName)
+            local vehicle = getPedOccupiedVehicle(localPlayer)
+            if pointName == "exit" and vehicle
+                and getVehicleOccupant(vehicle, 0) == localPlayer then
+                triggerServerEvent("bwbase:exitVehicle", resourceRoot, baseId)
+            else
+                triggerServerEvent("bwbase:interact", resourceRoot, baseId, pointName)
+            end
             cancelEvent()
         end
     end
