@@ -180,7 +180,7 @@ local function createPoint(baseId, pointName, point, markerType)
         point.x, point.y, point.z - 1,
         markerType or "cylinder",
         point.markerSize or 1.5,
-        120, 25, 25, 160
+        255, 255, 255, 180
     )
 
     if not marker then return end
@@ -502,9 +502,8 @@ addEventHandler("bwbase:enterVehicle", resourceRoot,
             setElementDimension(p, dimension)
             setElementPosition(v, point.x, point.y, point.z)
 
-            if type(point.rotation) == "number" then
-                setElementRotation(v, 0, 0, point.rotation)
-            end
+            -- При въезде на базу всегда разворачиваем автомобиль на 90 градусов.
+            setElementRotation(v, 0, 0, 90)
 
             fadeCamera(p, true, 0.3)
             triggerClientEvent(p, "bwbase:closeMenu", resourceRoot)
@@ -702,19 +701,38 @@ local function getVehicleZoneBase(vehicle)
     return nil
 end
 
+local function vehicleHasOccupants(vehicle)
+    if not isElement(vehicle) then return false end
+    local occupants = getVehicleOccupants(vehicle)
+    return type(occupants) == "table" and next(occupants) ~= nil
+end
+
+local function syncVehicleFreeze(vehicle)
+    if not isElement(vehicle) or not protectedVehicles[vehicle] then return end
+
+    -- В зоне базы автомобиль заморожен только пока в нём никого нет.
+    -- Посадка любого игрока снимает заморозку, выход последнего — включает её.
+    setElementFrozen(vehicle, not vehicleHasOccupants(vehicle))
+end
+
 local function protectVehicle(vehicle, baseId)
-    if protectedVehicles[vehicle] or not isElement(vehicle) then return end
+    if not isElement(vehicle) then return end
 
-    protectedVehicles[vehicle] = {
-        baseId = baseId,
-        frozen = isElementFrozen(vehicle),
-        damageProof = isVehicleDamageProof(vehicle),
-    }
+    if not protectedVehicles[vehicle] then
+        protectedVehicles[vehicle] = {
+            baseId = baseId,
+            frozen = isElementFrozen(vehicle),
+            damageProof = isVehicleDamageProof(vehicle),
+        }
 
-    setVehicleDamageProof(vehicle, true)
-    setElementFrozen(vehicle, true)
-    setElementData(vehicle, "bwbase:protected", true, false)
-    setElementData(vehicle, "bwbase:protectedBase", baseId, false)
+        setVehicleDamageProof(vehicle, true)
+        setElementData(vehicle, "bwbase:protected", true, false)
+        setElementData(vehicle, "bwbase:protectedBase", baseId, false)
+    else
+        protectedVehicles[vehicle].baseId = baseId
+    end
+
+    syncVehicleFreeze(vehicle)
 end
 
 local function restoreVehicle(vehicle)
@@ -729,6 +747,20 @@ local function restoreVehicle(vehicle)
     end
     protectedVehicles[vehicle] = nil
 end
+
+
+-- Внутри защищённой зоны состояние заморозки сразу следует за посадкой/выходом.
+addEventHandler("onVehicleEnter", root, function()
+    if protectedVehicles[source] then
+        syncVehicleFreeze(source)
+    end
+end)
+
+addEventHandler("onVehicleExit", root, function()
+    if protectedVehicles[source] then
+        syncVehicleFreeze(source)
+    end
+end)
 
 local function updateVehicleProtection()
     for _, vehicle in ipairs(getElementsByType("vehicle")) do
