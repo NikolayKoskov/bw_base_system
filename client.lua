@@ -150,7 +150,7 @@ local function findNearbyBaseMarker()
             local vehiclePoint = pointName == "vehicleEntrance"
             local vehicleExit = pointName == "exit"
             local allowed = (vehiclePoint and driving)
-                or (vehicleExit and driving)
+                or (vehicleExit and (driving or not vehicle))
                 or (not vehiclePoint and not vehicleExit and not vehicle)
             if allowed then
                 local mx = tonumber(getElementData(marker, "bwbase:pointX"))
