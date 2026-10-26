@@ -542,6 +542,59 @@ addEventHandler("bwbase:exit", resourceRoot,
     end
 )
 
+-- Выезд из базы на автомобиле через внутренний чекпоинт выхода.
+addEvent("bwbase:exitVehicle", true)
+addEventHandler("bwbase:exitVehicle", resourceRoot,
+    function(baseId)
+        local player = client
+        if not isElement(player) then return end
+
+        baseId = tostring(baseId)
+        local base = getBase(baseId)
+        if not base or not validCoords(base.exit) then return end
+
+        local vehicle = getPedOccupiedVehicle(player)
+        if not vehicle or getVehicleOccupant(vehicle, 0) ~= player then
+            return
+        end
+
+        -- Проверяем положение именно автомобиля, а не персонажа внутри него.
+        if not nearPoint(vehicle, base.exit, 7, 3.0) then return end
+
+        local destination = base.vehicleEntrance or base.entrance
+        if not validCoords(destination) then
+            notify(player, "Не настроена наружная точка выезда автомобиля.", 220, 70, 70)
+            return
+        end
+
+        fadeCamera(player, false, 0.3)
+        setTimer(function(p, v, point)
+            if not isElement(p) or not isElement(v) then return end
+            if getPedOccupiedVehicle(p) ~= v or getVehicleOccupant(v, 0) ~= p then
+                fadeCamera(p, true, 0.3)
+                return
+            end
+
+            local interior = point.interior or 0
+            local dimension = point.dimension or 0
+            setElementFrozen(v, false)
+            setElementVelocity(v, 0, 0, 0)
+            setElementAngularVelocity(v, 0, 0, 0)
+            setElementInterior(v, interior)
+            setElementDimension(v, dimension)
+            setElementInterior(p, interior)
+            setElementDimension(p, dimension)
+            setElementPosition(v, point.x, point.y, point.z)
+            setElementRotation(v, 0, 0, tonumber(point.rotation) or 0)
+            setElementVelocity(v, 0, 0, 0)
+            setElementAngularVelocity(v, 0, 0, 0)
+
+            fadeCamera(p, true, 0.3)
+            triggerClientEvent(p, "bwbase:closeMenu", resourceRoot)
+        end, 350, 1, player, vehicle, destination)
+    end
+)
+
 addEvent("bwbase:toggleOpen", true)
 addEventHandler("bwbase:toggleOpen", resourceRoot,
     function(baseId, isOpen)
