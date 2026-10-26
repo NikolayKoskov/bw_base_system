@@ -566,6 +566,82 @@ addCommandHandler("bwbase_limit", function(player, _, baseId, limit)
     )
 end)
 
+
+-- Защита транспорта внутри 3D-зоны базы.
+-- Сохраняем исходные состояния, чтобы восстановить их при выезде.
+local function getVehicleZoneBase(vehicle)
+    local x, y, z = getElementPosition(vehicle)
+    local interior = getElementInterior(vehicle)
+    local dimension = getElementDimension(vehicle)
+
+    for baseId, base in pairs(cfg.bases) do
+        local zone = base.vehicleZone
+        if type(zone) == "table"
+            and type(zone.minX) == "number" and type(zone.maxX) == "number"
+            and type(zone.minY) == "number" and type(zone.maxY) == "number"
+            and type(zone.minZ) == "number" and type(zone.maxZ) == "number"
+            and x >= math.min(zone.minX, zone.maxX)
+            and x <= math.max(zone.minX, zone.maxX)
+            and y >= math.min(zone.minY, zone.maxY)
+            and y <= math.max(zone.minY, zone.maxY)
+            and z >= math.min(zone.minZ, zone.maxZ)
+            and z <= math.max(zone.minZ, zone.maxZ)
+            and interior == (zone.interior or base.inside.interior or 0)
+            and dimension == (zone.dimension or base.inside.dimension or 0) then
+            local record = getBaseRecord(baseId)
+            if isLeaseActive(record) then
+                return tostring(baseId)
+            end
+        end
+    end
+    return nil
+end
+
+local function protectVehicle(vehicle, baseId)
+    if protectedVehicles[vehicle] or not isElement(vehicle) then return end
+
+    protectedVehicles[vehicle] = {
+        baseId = baseId,
+        frozen = isElementFrozen(vehicle),
+        damageProof = isVehicleDamageProof(vehicle),
+    }
+
+    setVehicleDamageProof(vehicle, true)
+    setElementFrozen(vehicle, true)
+    setElementData(vehicle, "bwbase:protected", true, false)
+    setElementData(vehicle, "bwbase:protectedBase", baseId, false)
+end
+
+local function restoreVehicle(vehicle)
+    local state = protectedVehicles[vehicle]
+    if not state then return end
+
+    if isElement(vehicle) then
+        setVehicleDamageProof(vehicle, state.damageProof == true)
+        setElementFrozen(vehicle, state.frozen == true)
+        removeElementData(vehicle, "bwbase:protected")
+        removeElementData(vehicle, "bwbase:protectedBase")
+    end
+    protectedVehicles[vehicle] = nil
+end
+
+local function updateVehicleProtection()
+    for _, vehicle in ipairs(getElementsByType("vehicle")) do
+        local baseId = getVehicleZoneBase(vehicle)
+        if baseId then
+            protectVehicle(vehicle, baseId)
+        else
+            restoreVehicle(vehicle)
+        end
+    end
+
+    for vehicle in pairs(protectedVehicles) do
+        if not isElement(vehicle) then
+            protectedVehicles[vehicle] = nil
+        end
+    end
+end
+
 addEventHandler("onResourceStart", resourceRoot, function()
     db = dbConnect("sqlite", cfg.databaseFile)
     if not db then
@@ -592,11 +668,16 @@ addEventHandler("onResourceStart", resourceRoot, function()
     ]])
 
     createConfiguredMarkers()
+    setTimer(updateVehicleProtection, 1000, 0)
+    updateVehicleProtection()
     outputDebugString("[bw_base_system] Ресурс запущен.")
 end)
 
 -- Освобождаем ресурсы SQLite при остановке.
 addEventHandler("onResourceStop", resourceRoot, function()
+    for vehicle in pairs(protectedVehicles) do
+        restoreVehicle(vehicle)
+    end
     if db then
         destroyElement(db)
         db = nil
